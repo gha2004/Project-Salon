@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DJ Salon - Luxury Smart Salon & IoT Station</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <audio
+      id="alertChime"
+      src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+      preload="auto"
+    ></audio>
+
+    <!-- NAVIGATION BAR -->
+    <nav class="navbar navbar-expand-xl fixed-top">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="#">
+          <i class="fa-solid fa-scissors me-2 text-pink"></i>DJ
+          <span>Salon</span>
+        </a>
+
+        <button
+          class="navbar-toggler border-0 text-white"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <i class="fa-solid fa-bars fs-3 text-pink"></i>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto align-items-xl-center">
+            <li class="nav-item customer-only">
+              <a class="nav-link active" href="#home">Home</a>
+            </li>
+            <li class="nav-item customer-only">
+              <a class="nav-link" href="#services">Services</a>
+            </li>
+            <li class="nav-item customer-only">
+              <a class="nav-link" href="#promotions">Offers</a>
+            </li>
+            <li class="nav-item customer-only">
+              <a class="nav-link" href="#feedback">Reviews</a>
+            </li>
+
+            <!-- DYNAMIC CONTROLS (RESTRICTED & HIDDEN UNTIL LOGIN) -->
+            <li class="nav-item d-none" id="navStationBtn">
+              <button
+                class="btn btn-outline-pink btn-sm px-3"
+                onclick="openStationBox()"
+              >
+                <i class="fa-solid fa-microchip me-1"></i> Station Button Box
+              </button>
+            </li>
+
+            <li class="nav-item d-none" id="navMyBookingsBtn">
+              <button
+                class="btn btn-outline-light btn-sm rounded-pill px-3"
+                onclick="openMyBookings()"
+              >
+                <i class="fa-solid fa-calendar-check me-1"></i> My Bookings
+                <span
+                  id="notifBadge"
+                  class="badge bg-danger rounded-pill ms-1 d-none"
+                  >0</span
+                >
+              </button>
+            </li>
+
+            <!-- ROLE NAVIGATION (Staff: 3 tools / Owner: Owner Hub) - built by JS -->
+            <li class="nav-item d-none" id="roleNav">
+              <div class="d-flex flex-wrap gap-2" id="roleNavBtns"></div>
+            </li>
+
+            <!-- AUTH CONTAINER -->
+            <li
+              class="nav-item d-flex align-items-center gap-2"
+              id="authNavContainer"
+            >
+              <a class="btn btn-sm btn-outline-light rounded-pill px-3" href="login.html"><i class="fa-solid fa-user-lock me-1 text-pink"></i> Login</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- APP SHELL: sidebar + top bar (logged-in users) -->
+    <div id="appShell" class="d-none">
+      <aside id="sideBar">
+        <div class="side-brand">
+          <i class="fa-solid fa-scissors me-2 text-pink"></i>DJ
+          <span>Salon</span>
+        </div>
+        <small class="text-white-50 d-block mb-1" id="sideTitle"
+          >My DJ Salon</small
+        >
+        <nav id="sideNav" class="mt-3 flex-grow-1"></nav>
+        <div class="side-user" id="sideUser"></div>
+      </aside>
+      <header id="topbar">
+        <div class="d-flex align-items-center gap-2">
+          <button
+            class="btn btn-sm d-lg-none"
+            onclick="$('#sideBar').toggleClass('open')"
+          >
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <small class="text-muted">My DJ Salon</small
+          ><small class="text-muted">&rsaquo;</small
+          ><small class="fw-semibold" id="tbTitle">Overview</small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <button class="icon-btn" onclick="bellGo()" title="Notifications">
+            <i class="fa-solid fa-bell"></i
+            ><span id="tbBadge" class="badge rounded-pill bg-danger d-none"
+              >0</span
+            >
+          </button>
+          <div class="user-chip">
+            <span class="avatar" id="tbAvatar">C</span>
+            <div class="lh-sm">
+              <div class="small fw-semibold" id="tbName"></div>
+              <small class="text-muted" id="tbRole"></small>
+            </div>
+          </div>
+        </div>
+      </header>
+    </div>
+
+    <!-- CUSTOMER PANES -->
+    <section id="custOverview" class="cp">
+      <div class="container">
+        <div class="pg-head">
+          <div>
+            <span class="eyebrow">Your Experience</span>
+            <h2 class="m-0" id="custWelcome">Welcome.</h2>
+            <p>
+              Your next moment of luxury starts here. Choose a treatment and
+              make yourself at home.
+            </p>
+          </div>
+          <button class="btn btn-pink" onclick="showPane('services')">
+            Explore Services
+          </button>
+        </div>
+        <div class="stat-strip mb-4">
+          <div>
+            <div class="kpi-ic"><i class="fa-solid fa-calendar-check"></i></div>
+            <div>
+              <small
+                class="text-muted fw-semibold text-uppercase"
+                style="font-size: 0.7rem"
+                >My Bookings</small
+              >
+              <div class="fw-bold lh-sm" id="ovBookings">0</div>
+            </div>
+          </div>
+          <div>
+            <div class="kpi-ic"><i class="fa-solid fa-chair"></i></div>
+            <div>
+              <small
+                class="text-muted fw-semibold text-uppercase"
+                style="font-size: 0.7rem"
+                >Selected Station</small
+              >
+              <div class="fw-bold lh-sm" id="ovStation">0</div>
+              <small class="text-muted d-block" id="ovStationSub"></small>
+            </div>
+          </div>
+          <div>
+            <div class="kpi-ic"><i class="fa-solid fa-wallet"></i></div>
+            <div>
+              <small
+                class="text-muted fw-semibold text-uppercase"
+                style="font-size: 0.7rem"
+                >My Payments</small
+              >
+              <div class="fw-bold lh-sm" id="ovPays">0</div>
+            </div>
+          </div>
+        </div>
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <h5 class="font-heading mb-3">Your salon experience</h5>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <button class="xcard" onclick="showPane('bookings')">
+                  <i
+                    class="fa-solid fa-calendar-check text-pink fs-5 mb-2 d-block"
+                  ></i>
+                  <div class="fw-bold font-heading fs-5">My Bookings</div>
+                  <small class="text-muted d-block mb-2"
+                    >Check pending, accepted or rejected requests and your paid
+                    receipts.</small
+                  ><span class="go">View bookings &rarr;</span>
+                </button>
+              </div>
+              <div class="col-md-6">
+                <button class="xcard" onclick="showPane('services')">
+                  <i
+                    class="fa-solid fa-scissors text-pink fs-5 mb-2 d-block"
+                  ></i>
+                  <div class="fw-bold font-heading fs-5">
+                    Signature Services
+                  </div>
+                  <small class="text-muted d-block mb-2"
+                    >Curated treatments. A little time, just for you.</small
+                  ><span class="go">Explore services &rarr;</span>
+                </button>
+              </div>
+              <div class="col-md-6">
+                <button class="xcard" onclick="showPane('station')">
+                  <i
+                    class="fa-solid fa-microchip text-pink fs-5 mb-2 d-block"
+                  ></i>
+                  <div class="fw-bold font-heading fs-5">
+                    Station Button Box
+                  </div>
+                  <small class="text-muted d-block mb-2"
+                    >Use your station to ask for assistance, add a treatment, or
+                    request your bill.</small
+                  ><span class="go">Open station &rarr;</span>
+                </button>
+              </div>
+              <div class="col-md-6">
+                <button class="xcard" onclick="showPane('feedback')">
+                  <i class="fa-solid fa-star text-pink fs-5 mb-2 d-block"></i>
+                  <div class="fw-bold font-heading fs-5">Guest Feedback</div>
+                  <small class="text-muted d-block mb-2"
+                    >Rate your completed station service. Your care is in the
+                    details.</small
+                  ><span class="go">Share feedback &rarr;</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="ws-card mb-3">
+              <div
+                class="d-flex justify-content-between align-items-center mb-2"
+              >
+                <h6 class="fw-bold m-0">Notifications</h6>
+                <small class="text-muted" id="ovNotifs">0 new</small>
+              </div>
+              <div class="small text-muted" id="ovNotifList"></div>
+            </div>
+            <div class="dark-card">
+              <span
+                class="badge rounded-pill mb-2"
+                style="background: var(--brand-pink-dark)"
+                >Limited Offer</span
+              >
+              <h5 class="font-heading" id="ovOfferTitle"></h5>
+              <button
+                class="btn btn-pink btn-sm mt-2"
+                onclick="showPane('offers')"
+              >
+                View Offer
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="custBookings" class="cp">
+      <div class="container">
+        <div class="pg-head">
+          <div>
+            <span class="eyebrow">My Bookings</span>
+            <h2 class="m-0">My Bookings</h2>
+            <p>
+              Check My Bookings for Pending, Accepted or Rejected requests and
+              your paid receipts.
+            </p>
+          </div>
+          <button class="btn btn-pink" onclick="showPane('services')">
+            Explore Services
+          </button>
+        </div>
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="ws-card mb-3">
+              <h6 class="fw-bold mb-3">Service requests</h6>
+              <div id="cbPills" class="d-flex flex-wrap gap-2 mb-3"></div>
+              <div id="cbList" class="d-flex flex-column gap-2"></div>
+            </div>
+            <div class="ws-card">
+              <h6 class="fw-bold mb-1">My Payments &amp; Receipts</h6>
+              <p class="small text-muted">
+                Accepted &amp; unpaid: “Please pay at the counter”. Once paid,
+                your payment amount and receipt will appear here.
+              </p>
+              <div id="cbPays"></div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="ws-card mb-3">
+              <h6 class="fw-bold mb-2">Notifications</h6>
+              <div id="cbNotifs" class="small text-muted"></div>
+            </div>
+            <div class="pink-card">
+              <h5 class="font-heading">Your first treatment is waiting.</h5>
+              <p class="small text-muted">
+                Curated treatments. A little time, just for you.
+              </p>
+              <button
+                class="btn btn-pink btn-sm"
+                onclick="showPane('services')"
+              >
+                Explore Services
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="custStation" class="cp">
+      <div class="container">
+        <div class="pg-head">
+          <div>
+            <span class="eyebrow">Station Button Box</span>
+            <h2 class="m-0">A little luxury, at your fingertips.</h2>
+            <p>
+              Use your station to ask for assistance, add a treatment, or
+              request your bill.
+            </p>
+          </div>
+        </div>
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="dark-card">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="hardware-led active"></span
+                ><small class="text-uppercase fw-bold text-white-50"
+                  >Station standby</small
+                >
+              </div>
+              <div class="row g-3">
+                <div class="col-md-5">
+                  <small class="text-white-50 fw-bold text-uppercase"
+                    >Active Station Unit</small
+                  >
+                  <div class="mt-2" id="stTiles"></div>
+                </div>
+                <div class="col-md-7">
+                  <button
+                    class="act-row main"
+                    onclick="stationReq('Call Staff', 'call-staff')"
+                  >
+                    <i class="fa-solid fa-hand fs-5"></i>
+                    <div>
+                      <div class="fw-bold">Call Staff</div>
+                      <small>A little assistance, please</small>
+                    </div>
+                  </button>
+                  <button
+                    class="act-row"
+                    onclick="stationReq('Order Add-on', 'order-addon')"
+                  >
+                    <i class="fa-solid fa-plus-circle fs-5"></i>
+                    <div>
+                      <div class="fw-bold">Order Add-on</div>
+                      <small>Make your visit extra special</small>
+                    </div>
+                  </button>
+                  <button
+                    class="act-row"
+                    onclick="stationReq('Request Bill', 'request-bill')"
+                  >
+                    <i class="fa-solid fa-receipt fs-5"></i>
+                    <div>
+                      <div class="fw-bold">Request Bill</div>
+                      <small>Let us know when you’re ready</small>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="pink-card mb-3">
+              <h5 class="font-heading">Make it yours.</h5>
+              <p class="small text-muted">
+                Want a little more pampering? Select “Request Add-on” on a
+                treatment to pair it with another signature service.
+              </p>
+              <button
+                class="btn btn-pink btn-sm"
+                onclick="showPane('services')"
+              >
+                View Services
+              </button>
+            </div>
+            <div class="ws-card">
+              <h6 class="fw-bold mb-2">My Payments</h6>
+              <div class="small text-muted" id="stPays"></div>
+              <button
+                class="btn btn-outline-pink btn-sm mt-3"
+                onclick="showPane('bookings')"
+              >
+                View My Bookings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAFF / OWNER WORKSPACE (rendered by JS, hidden for customers) -->
+    <section id="workspace" class="d-none py-4">
+      <div class="container" id="wsBody"></div>
+    </section>
+
+    <!-- HERO SECTION -->
+    <section id="home" class="hero customer-only">
+      <div class="container">
+        <div class="row align-items-center">
+          <div class="col-lg-7">
+            <div class="hero-badge">
+              <i class="fa-solid fa-sparkles text-pink"></i> Smart Beauty
+              Stations
+            </div>
+            <h1>Elevate Your Beauty Experience at DJ Salon</h1>
+            <p class="lead mt-3 text-white-50 fs-5">
+              Experience luxury treatments at your fingertips — request staff
+              support or customize add‑ons effortlessly
+            </p>
+            <div class="d-flex gap-3 justify-content-start mt-4 pt-2 flex-wrap">
+              <a href="#services" class="btn btn-pink">Explore Services</a>
+              <button class="btn btn-outline-pink" onclick="openStationBox()">
+                Test Hardware Station
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROMOTIONAL CONTENT SECTION -->
+    <section id="promotions" class="py-5 customer-only">
+      <div class="container">
+        <div
+          class="promo-card d-flex justify-content-between align-items-center flex-wrap gap-4"
+          id="promoContainer"
+        >
+          <div style="z-index: 2">
+            <span
+              class="badge text-white fw-bold px-3 py-2 rounded-pill mb-3"
+              style="background: var(--brand-pink-dark)"
+              >Limited Offer</span
+            >
+            <h2 class="fw-bold m-0 text-white" id="promoTitle">
+              Rose Gold Pamper Package - 20% Off!
+            </h2>
+            <p class="mt-2 text-white-50 m-0 fs-6" id="promoDesc">
+              Includes haircut, luxury scalp massage, and pink gel manicure when
+              ordered via station button.
+            </p>
+          </div>
+          <button
+            class="btn btn-pink rounded-pill px-4 py-3 fw-bold"
+            style="z-index: 2"
+            onclick="
+              triggerIoTRequest('Order Add-on', 'order-addon', custStation)
+            "
+          >
+            Claim Offer at Station
+          </button>
+          <div class="offer-pct">20%</div>
+        </div>
+        <div class="row g-3 mt-1 app-only">
+          <div class="col-lg-8">
+            <div class="ws-card h-100">
+              <h6 class="fw-bold mb-3">Included in your package</h6>
+              <div class="row g-3 text-center">
+                <div class="col-4">
+                  <div class="kpi-ic mx-auto mb-2">
+                    <i class="fa-solid fa-scissors"></i>
+                  </div>
+                  <small class="fw-semibold">Haircut</small>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-ic mx-auto mb-2">
+                    <i class="fa-solid fa-spa"></i>
+                  </div>
+                  <small class="fw-semibold">Luxury scalp massage</small>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-ic mx-auto mb-2">
+                    <i class="fa-solid fa-hand-sparkles"></i>
+                  </div>
+                  <small class="fw-semibold">Pink gel manicure</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="pink-card h-100">
+              <h5 class="font-heading">Exclusively at your station</h5>
+              <p class="small text-muted">When ordered via station button.</p>
+              <button class="btn btn-pink btn-sm" onclick="showPane('station')">
+                Open Station Button Box
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SERVICES & ADD-ONS SECTION -->
+    <section id="services" class="py-5 customer-only">
+      <div class="container py-2">
+        <div
+          class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2"
+        >
+          <div>
+            <span class="text-uppercase fw-bold text-pink small tracking-wider"
+              >Curated Treatments</span
+            >
+            <h2 class="fw-bold m-0">Our Signature Services</h2>
+          </div>
+        </div>
+
+        <div class="row g-4" id="servicesGrid">
+          <!-- Rendered dynamically -->
+        </div>
+        <div class="row g-3 mt-3 app-only">
+          <div class="col-md-7">
+            <div class="pink-card h-100">
+              <h5 class="font-heading">Make it your own.</h5>
+              <p class="small text-muted mb-0">
+                Want a little more pampering? Select “Request Add-on” on a
+                treatment to pair it with another signature service.
+              </p>
+            </div>
+          </div>
+          <div class="col-md-5">
+            <div class="ws-card h-100">
+              <h6 class="fw-bold">My Bookings</h6>
+              <p class="small text-muted">
+                Check pending, accepted or rejected requests and your paid
+                receipts.
+              </p>
+              <button
+                class="btn btn-outline-pink btn-sm"
+                onclick="showPane('bookings')"
+              >
+                View My Bookings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CUSTOMER FEEDBACK & RATING MODULE -->
+    <section id="feedback" class="py-5 bg-white border-top customer-only">
+      <div class="container py-3">
+        <div class="row justify-content-center">
+          <div class="col-lg-8">
+            <div class="text-center mb-5">
+              <span class="text-uppercase fw-bold text-pink small"
+                >Guest Satisfaction</span
+              >
+              <h2 class="fw-bold">Tell Us About Your DJ Salon Experience</h2>
+              <p class="text-muted">
+                Rate your completed station service to help our team maintain
+                supreme quality standards.
+              </p>
+            </div>
+
+            <div
+              class="card border-0 shadow-sm p-4 p-md-5 rounded-4"
+              style="background: var(--brand-soft-bg)"
+            >
+              <form id="feedbackForm">
+                <div class="mb-4 text-center">
+                  <label class="form-label fw-bold d-block mb-3"
+                    >Rate Your Service Quality</label
+                  >
+                  <div
+                    class="star-rating fs-1 d-inline-flex gap-3"
+                    id="starContainer"
+                  >
+                    <i class="fa-regular fa-star" data-value="1"></i>
+                    <i class="fa-regular fa-star" data-value="2"></i>
+                    <i class="fa-regular fa-star" data-value="3"></i>
+                    <i class="fa-regular fa-star" data-value="4"></i>
+                    <i class="fa-regular fa-star" data-value="5"></i>
+                  </div>
+                  <input type="hidden" id="selectedRating" value="0" />
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Station ID</label>
+                    <select class="form-select" id="feedbackStation" required>
+                      <option value="Station 01">
+                        Station 01 (Styling Chair A)
+                      </option>
+                      <option value="Station 02">
+                        Station 02 (Styling Chair B)
+                      </option>
+                      <option value="Station 03">
+                        Station 03 (Wash Basin Unit)
+                      </option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold"
+                      >Your Name (Optional)</label
+                    >
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="feedbackName"
+                      placeholder="Jane Doe"
+                    />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label fw-semibold">Written Review</label>
+                    <textarea
+                      class="form-control"
+                      id="feedbackComment"
+                      rows="3"
+                      placeholder="How was your stylist's response time and service quality?"
+                      required
+                    ></textarea>
+                  </div>
+                  <div class="col-12 pt-2">
+                    <button
+                      type="submit"
+                      class="btn btn-pink w-100 rounded-pill py-3 fw-bold"
+                    >
+                      Submit Guest Feedback
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="mt-5">
+              <h5 class="fw-bold mb-3">
+                <i class="fa-solid fa-heart me-2 text-pink"></i>Recent Guest
+                Reviews
+              </h5>
+              <div id="reviewsList" class="d-flex flex-column gap-3">
+                <!-- Injected by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer
+      class="bg-dark text-white py-4 text-center border-top border-secondary"
+    >
+      <div class="container">
+        <p class="m-0 text-white-50">
+          © 2026 DJ Salon Management System. Powered by Smart IoT Buttons.
+        </p>
+      </div>
+    </footer>
+
+    <!-- STAFF DASHBOARD (OFFCANVAS - HIDDEN & PROTECTED) -->
+    <div
+      class="offcanvas offcanvas-end"
+      tabindex="-1"
+      id="staffDashboard"
+      style="
+        width: min(720px, 100%);
+        border-left: 1px solid rgba(232, 130, 153, 0.3);
+      "
+    >
+      <div class="offcanvas-header bg-dark text-white">
+        <h5 class="offcanvas-title fw-bold font-heading">
+          <i class="fa-solid fa-chart-line me-2 text-pink"></i>Request Queue
+          &amp; Payments
+        </h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="offcanvas"
+        ></button>
+      </div>
+      <div class="offcanvas-body bg-light">
+        <div id="paymentSummary" class="row g-2 mb-4"></div>
+
+        <h6 class="fw-bold text-uppercase text-muted mb-3">Service Requests</h6>
+        <div id="bookingQueue" class="d-flex flex-column gap-3 mb-4">
+          <div class="text-center py-4 bg-white rounded-4 shadow-sm text-muted">
+            No service requests yet.
+          </div>
+        </div>
+        <hr class="my-4" />
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold text-uppercase text-muted m-0">
+            Live Station IoT Signals
+          </h6>
+          <span
+            class="badge bg-danger rounded-pill px-3 py-2"
+            id="queueStatusBadge"
+            >0 Active Requests</span
+          >
+        </div>
+
+        <div id="requestQueue" class="d-flex flex-column gap-3 mb-4">
+          <div
+            class="text-center py-5 bg-white rounded-4 shadow-sm text-muted"
+            id="emptyState"
+          >
+            <i class="fa-solid fa-circle-check fs-1 text-pink mb-2 d-block"></i>
+            All station requests are clear.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HARDWARE BUTTON SIMULATOR (MODAL - REQUIRES LOGIN) -->
+    <div class="modal fade glass-modal" id="iotSimulatorModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+          <div class="hardware-box">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <span class="hardware-led" id="statusLed"></span>
+                <span
+                  class="small fw-bold text-uppercase tracking-wider text-white-50"
+                  id="ledStatusText"
+                  >Station Standby</span
+                >
+              </div>
+              <button
+                type="button"
+                class="btn-close btn-close-white"
+                data-bs-dismiss="modal"
+              ></button>
+            </div>
+
+            <h5 class="fw-bold font-heading mb-3 text-pink">
+              DJ Station IoT Button Box
+            </h5>
+
+            <div class="mb-4">
+              <label class="form-label small text-white-50 fw-bold"
+                >Active Station Unit:</label
+              >
+              <select
+                id="simStationSelect"
+                class="form-select bg-dark text-white border-secondary"
+              >
+                <option value="Station 01">Station 01 (Styling Chair A)</option>
+                <option value="Station 02">Station 02 (Styling Chair B)</option>
+                <option value="Station 03">Station 03 (Wash Basin Unit)</option>
+              </select>
+            </div>
+
+            <div class="d-grid gap-3">
+              <button
+                class="btn btn-pink btn-iot"
+                onclick="triggerIoTRequest('Call Staff', 'call-staff')"
+              >
+                <i class="fa-solid fa-hand fs-5 me-2"></i> Call Staff
+              </button>
+              <button
+                class="btn btn-iot text-white"
+                style="background: var(--brand-pink-dark)"
+                onclick="triggerIoTRequest('Order Add-on', 'order-addon')"
+              >
+                <i class="fa-solid fa-plus-circle fs-5 me-2"></i> Order Add-on
+              </button>
+              <button
+                class="btn btn-primary btn-iot"
+                onclick="triggerIoTRequest('Request Bill', 'request-bill')"
+              >
+                <i class="fa-solid fa-receipt fs-5 me-2"></i> Request Bill
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTIFICATION TOASTS -->
+    <div
+      class="toast-container position-fixed top-0 end-0 p-3"
+      style="z-index: 2000; margin-top: 70px"
+      id="toastBox"
+    ></div>
+
+    <!-- ADD-ON PICKER MODAL -->
+    <div class="modal fade" id="addonModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold font-heading">
+              <i class="fa-solid fa-plus-circle me-2 text-pink"></i>Choose Your
+              Add-ons
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-3" id="addonFor"></p>
+            <div id="addonOptions" class="d-flex flex-column gap-2"></div>
+          </div>
+          <div class="modal-footer border-0">
+            <button
+              class="btn btn-pink w-100 rounded-pill"
+              onclick="confirmAddon()"
+            >
+              Send Add-on Request
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY BOOKINGS MODAL (CUSTOMER) -->
+    <div class="modal fade" id="myBookingsModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold font-heading">
+              <i class="fa-solid fa-calendar-check me-2 text-pink"></i>My
+              Bookings
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body" id="myBookingsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGOUT CONFIRMATION -->
+    <div class="modal fade" id="logoutModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 rounded-4 text-center p-4">
+          <i class="fa-solid fa-right-from-bracket fs-2 text-pink mb-2"></i>
+          <h5 class="fw-bold font-heading">Log out?</h5>
+          <p class="text-muted small mb-4">Do you really want to log out?</p>
+          <div class="d-flex gap-2">
+            <button
+              class="btn btn-outline-secondary flex-fill rounded-pill"
+              data-bs-dismiss="modal"
+            >
+              Cancel</button
+            ><button
+              class="btn btn-pink flex-fill rounded-pill"
+              onclick="confirmLogout()"
+            >
+              Yes, log out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="auth.js"></script>
+
+    <script src="script.js"></script>
+  </body>
+</html>

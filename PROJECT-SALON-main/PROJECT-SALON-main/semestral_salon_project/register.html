@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - DJ Salon</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body { min-height: 100vh; padding: 1.5rem 1rem; background: linear-gradient(rgba(28, 17, 22, 0.68), rgba(28, 17, 22, 0.88)), url("image/register/salonbackground.jpg") center / cover fixed; }
+      .register-shell { width: min(100%, 680px); margin: 0 auto; }
+      .register-shell .modal-content { max-height: calc(100vh - 3rem); overflow-y: auto; }
+    </style>
+  </head>
+  <body>
+    <main class="container register-shell py-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <a class="navbar-brand fw-bold text-decoration-none" href="index%20.html"><i class="fa-solid fa-scissors me-2 text-pink"></i>DJ <span>Salon</span></a>
+        <a class="btn btn-outline-light btn-sm rounded-pill px-3" href="login.html">Sign in</a>
+      </div>
+      <section class="glass-modal">
+        <div class="modal-content border-0">
+          <div class="p-4">
+            <h1 class="fw-bold font-heading text-pink fs-3 mb-3"><i class="fa-solid fa-user-shield me-2"></i>Create an account</h1>
+            <p class="small text-white-50">Complete the ID and live-selfie verification before creating your account. Images are processed in this browser for this prototype.</p>
+            <form id="registerForm" novalidate>
+                  <ol
+                    class="verification-steps"
+                    id="verificationSteps"
+                    aria-label="Identity verification steps"
+                  >
+                    <li
+                      class="verification-step is-active"
+                      data-step-indicator="1"
+                      aria-current="step"
+                    >
+                      <span class="verification-step-number">1</span>ID
+                    </li>
+                    <li class="verification-step" data-step-indicator="2">
+                      <span class="verification-step-number">2</span>Review
+                    </li>
+                    <li class="verification-step" data-step-indicator="3">
+                      <span class="verification-step-number">3</span>Selfie
+                    </li>
+                    <li class="verification-step" data-step-indicator="4">
+                      <span class="verification-step-number">4</span>Verify
+                    </li>
+                    <li class="verification-step" data-step-indicator="5">
+                      <span class="verification-step-number">5</span>Result
+                    </li>
+                  </ol>
+
+                  <section
+                    class="verification-panel"
+                    data-verification-panel="1"
+                    aria-labelledby="verificationStepTitle1"
+                  >
+                    <h5 id="verificationStepTitle1" class="fw-bold text-white">
+                      Upload your ID
+                    </h5>
+                    <p class="small text-white-50">
+                      Use a clear, valid government-issued ID. Keep the full ID
+                      and its portrait in frame.
+                    </p>
+                    <div class="verification-note p-3 small mb-3">
+                      <div class="fw-bold text-white mb-1">
+                        <i class="fa-solid fa-shield-halved text-pink me-1"></i>
+                        Private, browser-only prototype
+                      </div>
+                      <div class="form-check">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          id="verificationConsent"
+                        />
+                        <label
+                          class="form-check-label"
+                          for="verificationConsent"
+                        >
+                          I consent to local OCR processing of my ID image and
+                          temporary processing of my face for this check.
+                        </label>
+                      </div>
+                    </div>
+                    <label
+                      for="idImage"
+                      class="form-label small text-white-50 fw-semibold"
+                      >Government-issued ID image</label
+                    >
+                    <input
+                      type="file"
+                      class="form-control bg-dark text-white border-secondary"
+                      id="idImage"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      disabled
+                    />
+                    <div class="form-text text-white-50">
+                      Upload a JPEG, PNG, or WebP image up to 10 MB, or use the
+                      camera button below to take the ID photo directly.
+                    </div>
+                    <div class="verification-note p-3 mt-3">
+                      <div class="small text-white-50 mb-2">
+                        Or capture the ID directly with your camera.
+                      </div>
+                      <video
+                        id="idCaptureVideo"
+                        autoplay
+                        muted
+                        playsinline
+                        class="d-none"
+                      ></video>
+                      <div class="d-flex gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-outline-light rounded-pill flex-fill"
+                          id="startIdCameraButton"
+                          disabled
+                        >
+                          Use camera
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-pink rounded-pill flex-fill d-none"
+                          id="captureIdButton"
+                          disabled
+                        >
+                          Capture ID
+                        </button>
+                      </div>
+                      <div
+                        id="idCameraStatus"
+                        class="small mt-2"
+                        role="status"
+                        aria-live="polite"
+                      ></div>
+                    </div>
+                    <div
+                      id="idProcessStatus"
+                      class="small mt-2"
+                      role="status"
+                      aria-live="polite"
+                    ></div>
+                    <div
+                      id="idPreviewWrap"
+                      class="verification-preview mt-3 d-none"
+                    >
+                      <img id="idPreview" alt="Preview of the selected ID" />
+                    </div>
+                  </section>
+
+                  <section
+                    class="verification-panel d-none"
+                    data-verification-panel="2"
+                    aria-labelledby="verificationStepTitle2"
+                    hidden
+                  >
+                    <h5 id="verificationStepTitle2" class="fw-bold text-white">
+                      Review your details
+                    </h5>
+                    <p class="small text-white-50">
+                      Check the OCR suggestions and correct anything that
+                      doesn’t match your ID.
+                    </p>
+                    <div
+                      id="reviewIdStatus"
+                      class="small mb-3"
+                      role="status"
+                      aria-live="polite"
+                    ></div>
+                    <div
+                      id="reviewIdPreviewWrap"
+                      class="verification-preview mb-3 d-none"
+                    >
+                      <img
+                        id="reviewIdPreview"
+                        alt="ID preview while reviewing extracted details"
+                      />
+                    </div>
+                    <div class="mb-3">
+                      <label
+                        for="regName"
+                        class="form-label small text-white-50 fw-semibold"
+                        >Full Name</label
+                      >
+                      <input
+                        type="text"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="regName"
+                        placeholder="Enter full name"
+                      />
+                      <div
+                        class="text-danger small mt-1 d-none"
+                        id="regNameErr"
+                      ></div>
+                    </div>
+                    <div class="mb-3">
+                      <label
+                        for="regDob"
+                        class="form-label small text-white-50 fw-semibold"
+                        >Date of Birth</label
+                      >
+                      <input
+                        type="date"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="regDob"
+                      />
+                    </div>
+                    <div class="mb-3">
+                      <label
+                        for="regAddress"
+                        class="form-label small text-white-50 fw-semibold"
+                        >Address</label
+                      >
+                      <textarea
+                        class="form-control bg-dark text-white border-secondary"
+                        id="regAddress"
+                        rows="2"
+                        placeholder="Enter your address"
+                      ></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline-light rounded-pill flex-fill"
+                        data-step-back="1"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-pink rounded-pill flex-fill"
+                        id="continueToSelfieButton"
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </section>
+
+                  <section
+                    class="verification-panel d-none"
+                    data-verification-panel="3"
+                    aria-labelledby="verificationStepTitle3"
+                    hidden
+                  >
+                    <h5 id="verificationStepTitle3" class="fw-bold text-white">
+                      Take a live selfie
+                    </h5>
+                    <p class="small text-white-50">
+                      Center your face inside the oval, look at the camera, and
+                      blink when prompted.
+                    </p>
+                    <div
+                      class="face-camera-stage"
+                      id="faceCameraStage"
+                      aria-label="Live camera view with face-position guide"
+                    >
+                      <video
+                        id="faceVideo"
+                        autoplay
+                        muted
+                        playsinline
+                        class="d-none"
+                      ></video>
+                      <div
+                        id="faceGuide"
+                        class="face-guide d-none"
+                        aria-hidden="true"
+                      ></div>
+                    </div>
+                    <div
+                      id="faceLiveStatus"
+                      class="small mt-2"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      Start your camera when you’re ready.
+                    </div>
+                    <div id="faceCaptureControls" class="d-flex gap-2 mt-3">
+                      <button
+                        type="button"
+                        class="btn btn-outline-light rounded-pill flex-fill"
+                        id="startCameraButton"
+                        disabled
+                      >
+                        Start camera
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-pink rounded-pill flex-fill d-none"
+                        id="captureFaceButton"
+                        disabled
+                      >
+                        Capture selfie
+                      </button>
+                    </div>
+                    <div class="d-flex mt-2">
+                      <button
+                        type="button"
+                        class="btn btn-link text-white-50 text-decoration-none px-0"
+                        data-step-back="2"
+                      >
+                        Back to ID details
+                      </button>
+                    </div>
+                  </section>
+
+                  <section
+                    class="verification-panel d-none"
+                    data-verification-panel="4"
+                    aria-labelledby="verificationStepTitle4"
+                    hidden
+                  >
+                    <h5 id="verificationStepTitle4" class="fw-bold text-white">
+                      Verify your identity
+                    </h5>
+                    <p class="small text-white-50">
+                      We’ll compare the captured selfie with the face on your ID
+                      on this device.
+                    </p>
+                    <div class="verification-result p-3 small mb-3">
+                      <i class="fa-solid fa-lock text-pink me-1"></i>
+                      Facial images are processed temporarily in this browser
+                      and are not uploaded or persisted.
+                    </div>
+                    <div
+                      id="selfiePreviewWrap"
+                      class="verification-preview mb-3 d-none"
+                    >
+                      <canvas
+                        id="selfiePreview"
+                        aria-label="Captured selfie preview"
+                      ></canvas>
+                    </div>
+                    <div
+                      id="faceProcessStatus"
+                      class="small mb-3"
+                      role="status"
+                      aria-live="polite"
+                    ></div>
+                    <div class="d-flex gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline-light rounded-pill flex-fill"
+                        data-step-back="3"
+                      >
+                        Retake selfie
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-pink rounded-pill flex-fill"
+                        id="verifyIdentityButton"
+                      >
+                        <i class="fa-solid fa-shield-halved me-1"></i>Verify
+                        identity
+                      </button>
+                    </div>
+                  </section>
+
+                  <section
+                    class="verification-panel d-none"
+                    data-verification-panel="5"
+                    aria-labelledby="verificationStepTitle5"
+                    hidden
+                  >
+                    <h5 id="verificationStepTitle5" class="fw-bold text-white">
+                      Verification result
+                    </h5>
+                    <div
+                      id="verificationResult"
+                      class="verification-result p-3 mb-3"
+                      role="status"
+                      aria-live="polite"
+                    ></div>
+                    <button
+                      type="button"
+                      class="btn btn-outline-light rounded-pill w-100 mb-3 d-none"
+                      id="retrySelfieButton"
+                    >
+                      Retake selfie and try again
+                    </button>
+                    <div id="registrationDetails" class="d-none">
+                      <p class="small text-white-50">
+                        Identity check passed. Finish setting up your account.
+                      </p>
+                      <div class="mb-3">
+                        <label
+                          for="regUser"
+                          class="form-label small text-white-50 fw-semibold"
+                          >Username / Name</label
+                        >
+                        <input
+                          type="text"
+                          class="form-control bg-dark text-white border-secondary"
+                          id="regUser"
+                          placeholder="Enter username or name"
+                        />
+                        <div
+                          class="text-danger small mt-1 d-none"
+                          id="regUserErr"
+                        ></div>
+                      </div>
+                      <div class="mb-3">
+                        <label
+                          for="regPhone"
+                          class="form-label small text-white-50 fw-semibold"
+                          >Phone Number *</label
+                        >
+                        <input
+                          type="text"
+                          inputmode="numeric"
+                          maxlength="11"
+                          class="form-control bg-dark text-white border-secondary"
+                          id="regPhone"
+                          placeholder="11-digit phone number"
+                        />
+                        <div
+                          class="text-danger small mt-1 d-none"
+                          id="regPhoneErr"
+                        ></div>
+                      </div>
+                      <div class="mb-3">
+                        <label
+                          for="regPassword"
+                          class="form-label small text-white-50 fw-semibold"
+                          >Password</label
+                        >
+                        <input
+                          type="password"
+                          class="form-control bg-dark text-white border-secondary"
+                          id="regPassword"
+                          placeholder="Enter password"
+                        />
+                        <div
+                          class="text-danger small mt-1 d-none"
+                          id="regPassErr"
+                        ></div>
+                      </div>
+                      <div class="mb-4">
+                        <label
+                          for="regConfirm"
+                          class="form-label small text-white-50 fw-semibold"
+                          >Confirm Password</label
+                        >
+                        <input
+                          type="password"
+                          class="form-control bg-dark text-white border-secondary"
+                          id="regConfirm"
+                          placeholder="Confirm password"
+                        />
+                        <div
+                          class="text-danger small mt-1 d-none"
+                          id="regConfErr"
+                        ></div>
+                      </div>
+                      <button
+                        type="submit"
+                        id="registerSubmitButton"
+                        class="btn btn-pink w-100 rounded-pill py-2.5 fw-bold"
+                      >
+                        Create Account
+                      </button>
+                    </div>
+                  </section>
+                </form>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="auth.js"></script>
+    <script src="register.js"></script>
+  </body>
+</html>
