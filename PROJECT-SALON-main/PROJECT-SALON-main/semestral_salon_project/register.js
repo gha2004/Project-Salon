@@ -1,5 +1,4 @@
 $(document).ready(function () {
-  const registeredUsers = window.DJSALON_AUTH.getUsers();
         const setErr = (id, msg) => $(id).text(msg).toggleClass("d-none", !msg);
         const checkMatch = () => {
           const c = $("#regConfirm").val();
@@ -19,11 +18,16 @@ $(document).ready(function () {
         });
         $("#regPassword, #regConfirm").on("input", checkMatch);
         $("#regUser").on("input", () => setErr("#regUserErr", ""));
+        $("#regUser, #regPhone, #regPassword, #regConfirm").on(
+          "input",
+          () => $("#registrationSaveStatus").addClass("d-none").text(""),
+        );
         const faceModelUrl =
           "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
         const maxIdentityImageBytes = 10 * 1024 * 1024;
         let idFaceDescriptor = null;
         let faceVerified = false;
+        let registeredFaceDescriptor = null;
         let cameraStream = null;
         let idCameraStream = null;
         let faceModelsLoading = null;
@@ -34,11 +38,8 @@ $(document).ready(function () {
         let capturedSelfieDescriptor = null;
         let faceMonitorTimer = null;
         let faceMonitorBusy = false;
-        let blinkProgress = {
-          openFrames: 0,
-          sawClosed: false,
-          complete: false,
-        };
+        let stableFace = { samples: 0, box: null, since: 0 };
+        let selfieCaptureInProgress = false;
         const activeOcrWorkers = new Set();
         const terminateOcrWorkers = () => {
           const workers = Array.from(activeOcrWorkers);
@@ -50,6 +51,7 @@ $(document).ready(function () {
             clearTimeout(faceMonitorTimer);
             faceMonitorTimer = null;
           }
+          stableFace = { samples: 0, box: null, since: 0 };
           if (cameraStream) {
             cameraStream.getTracks().forEach((track) => track.stop());
             cameraStream = null;
@@ -68,6 +70,45 @@ $(document).ready(function () {
           $("#captureIdButton").addClass("d-none").prop("disabled", true);
           $("#startIdCameraButton").removeClass("d-none");
         };
+        const waitForVideoFrame = (video, stream) =>
+          new Promise((resolve, reject) => {
+            let timeout;
+            const cleanup = () => {
+              clearTimeout(timeout);
+              video.removeEventListener("loadedmetadata", checkReady);
+              video.removeEventListener("loadeddata", checkReady);
+              video.removeEventListener("canplay", checkReady);
+              video.removeEventListener("error", handleError);
+            };
+            const handleError = () => {
+              cleanup();
+              reject(new Error("The camera preview could not be loaded."));
+            };
+            const checkReady = () => {
+              if (!stream.getVideoTracks().some((track) => track.readyState === "live")) {
+                cleanup();
+                reject(new Error("The camera stream ended before a frame was ready."));
+                return;
+              }
+              if (
+                video.readyState >= 2 &&
+                video.videoWidth > 0 &&
+                video.videoHeight > 0
+              ) {
+                cleanup();
+                resolve();
+              }
+            };
+            video.addEventListener("loadedmetadata", checkReady);
+            video.addEventListener("loadeddata", checkReady);
+            video.addEventListener("canplay", checkReady);
+            video.addEventListener("error", handleError);
+            timeout = setTimeout(() => {
+              cleanup();
+              reject(new Error("The camera did not provide a usable video frame."));
+            }, 10000);
+            checkReady();
+          });
         const setVerificationStatus = (selector, message, success = false) => {
           const status = $(selector);
           const isError = !!message && !success;
@@ -160,7 +201,8 @@ $(document).ready(function () {
           clearIdPreview();
           idFaceDescriptor = null;
           faceVerified = false;
-          blinkProgress = { openFrames: 0, sawClosed: false, complete: false };
+          registeredFaceDescriptor = null;
+          stableFace = { samples: 0, box: null, since: 0 };
           $("#idImage").val("");
           $("#verificationConsent").prop("checked", false);
           $("#idImage, #startCameraButton, #startIdCameraButton").prop(
@@ -253,16 +295,6 @@ $(document).ready(function () {
             if (centerY > 0.68) return "Move your face slightly higher.";
           }
           return "";
-        };
-        const eyeAspectRatio = (eye) => {
-          const distance = (first, second) =>
-            Math.hypot(first.x - second.x, first.y - second.y);
-          const horizontal = distance(eye[0], eye[3]);
-          if (!horizontal) return 0;
-          return (
-            (distance(eye[1], eye[5]) + distance(eye[2], eye[4])) /
-            (2 * horizontal)
-          );
         };
         const extractIdFields = (text) => {
           const lines = text
@@ -383,11 +415,7 @@ $(document).ready(function () {
             faceVerified = false;
             clearCapturedSelfie();
             clearIdPreview();
-            blinkProgress = {
-              openFrames: 0,
-              sawClosed: false,
-              complete: false,
-            };
+            stableFace = { samples: 0, box: null, since: 0 };
             terminateOcrWorkers();
             setVerificationStatus("#idProcessStatus", "");
             setVerificationStatus(
@@ -580,6 +608,14 @@ $(document).ready(function () {
             const video = $("#idCaptureVideo").get(0);
             video.srcObject = stream;
             await video.play();
+            await waitForVideoFrame(video, stream);
+            if (
+              cameraGeneration !== verificationGeneration ||
+              currentVerificationStep !== 1
+            ) {
+              releaseIdCamera();
+              return;
+            }
             $("#idCaptureVideo").removeClass("d-none");
             $("#startIdCameraButton").addClass("d-none");
             $("#captureIdButton").removeClass("d-none").prop("disabled", false);
@@ -655,97 +691,210 @@ $(document).ready(function () {
           }
         });
 
+        const captureStableSelfie = async () => {
+          if (
+            selfieCaptureInProgress ||
+            !cameraStream ||
+            !idFaceDescriptor ||
+            currentVerificationStep !== 3
+          ) {
+            return;
+          }
+          selfieCaptureInProgress = true;
+          $("#captureFaceButton").prop("disabled", true).text("Capturing selfie…");
+          setVerificationStatus(
+            "#faceLiveStatus",
+            "Face is stable. Capturing your selfie…",
+            true,
+          );
+          const captureGeneration = verificationGeneration;
+          clearCapturedSelfie();
+          let capturedFrame;
+          try {
+            const video = $("#faceVideo").get(0);
+            if (
+              !cameraStream
+                .getVideoTracks()
+                .some((track) => track.readyState === "live") ||
+              video.readyState < 2 ||
+              !video.videoWidth ||
+              !video.videoHeight
+            ) {
+              throw new Error(
+                "Wait for an active camera frame before capturing.",
+              );
+            }
+            capturedFrame = $("#selfiePreview").get(0);
+            capturedFrame.width = video.videoWidth;
+            capturedFrame.height = video.videoHeight;
+            capturedFrame
+              .getContext("2d")
+              .drawImage(
+                video,
+                0,
+                0,
+                capturedFrame.width,
+                capturedFrame.height,
+              );
+            const result = await recognizeFace(capturedFrame);
+            if (
+              captureGeneration !== verificationGeneration ||
+              !$("#verificationConsent").prop("checked") ||
+              currentVerificationStep !== 3
+            ) {
+              capturedFrame.width = 0;
+              capturedFrame.height = 0;
+              return;
+            }
+            const positionMessage = getFacePositionMessage(
+              result.box,
+              capturedFrame.width,
+              capturedFrame.height,
+              true,
+            );
+            if (positionMessage) {
+              capturedFrame.width = 0;
+              capturedFrame.height = 0;
+              stableFace = { samples: 0, box: null, since: 0 };
+              setVerificationStatus(
+                "#faceLiveStatus",
+                `${positionMessage} Hold still for automatic capture.`,
+                true,
+              );
+              return;
+            }
+            capturedSelfieCanvas = capturedFrame;
+            capturedSelfieDescriptor = result.descriptor;
+            $("#selfiePreviewWrap").removeClass("d-none");
+            setVerificationStatus(
+              "#faceLiveStatus",
+              "Selfie captured. Review it, then continue to verify.",
+              true,
+            );
+            setVerificationStep(4);
+          } catch (error) {
+            if (capturedFrame) {
+              capturedFrame.width = 0;
+              capturedFrame.height = 0;
+            }
+            stableFace = { samples: 0, box: null, since: 0 };
+            releaseCamera();
+            setVerificationStatus(
+              "#faceLiveStatus",
+              error && error.message
+                ? `Selfie could not be checked: ${error.message}`
+                : "Selfie could not be checked. Try again in better lighting.",
+            );
+          } finally {
+            selfieCaptureInProgress = false;
+            if (currentVerificationStep === 3 && cameraStream) {
+              $("#captureFaceButton")
+                .prop("disabled", true)
+                .text("Hold still for capture");
+            }
+          }
+        };
+
         const monitorFaceGuide = async () => {
           if (!cameraStream || currentVerificationStep !== 3) return;
-          if (faceMonitorBusy) {
-            faceMonitorTimer = setTimeout(monitorFaceGuide, 250);
+          if (faceMonitorBusy || selfieCaptureInProgress) {
+            faceMonitorTimer = setTimeout(monitorFaceGuide, 50);
             return;
           }
           faceMonitorBusy = true;
           try {
             const video = $("#faceVideo").get(0);
-            if (video.readyState >= 2) {
-              const detections = await faceapi
-                .detectAllFaces(
-                  video,
-                  new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }),
-                )
-                .withFaceLandmarks();
-              if (
-                !cameraStream ||
-                currentVerificationStep !== 3 ||
-                !$("#verificationConsent").prop("checked")
-              ) {
-                return;
-              }
-              if (detections.length !== 1) {
-                $("#faceGuide").removeClass("is-aligned");
-                $("#captureFaceButton").prop("disabled", true);
-                blinkProgress = {
-                  openFrames: 0,
-                  sawClosed: false,
-                  complete: false,
-                };
-                setVerificationStatus(
-                  "#faceLiveStatus",
-                  detections.length === 0
-                    ? "Move into the oval and face the camera."
-                    : "Only one face should be visible. Ask others to step out of frame.",
-                );
-              } else {
-                const detection = detections[0];
-                const positionMessage = getFacePositionMessage(
-                  detection.detection.box,
-                  video.videoWidth,
-                  video.videoHeight,
-                  true,
-                );
-                if (positionMessage) {
-                  $("#faceGuide").removeClass("is-aligned");
-                  $("#captureFaceButton").prop("disabled", true);
-                  blinkProgress = {
-                    openFrames: 0,
-                    sawClosed: false,
-                    complete: false,
-                  };
-                  setVerificationStatus(
-                    "#faceLiveStatus",
-                    positionMessage,
-                    true,
-                  );
-                } else {
-                  $("#faceGuide").addClass("is-aligned");
-                  const landmarks = detection.landmarks;
-                  const leftEye = eyeAspectRatio(landmarks.getLeftEye());
-                  const rightEye = eyeAspectRatio(landmarks.getRightEye());
-                  const eyesOpen = leftEye > 0.22 && rightEye > 0.22;
-                  const eyesClosed = leftEye < 0.18 && rightEye < 0.18;
-                  if (!blinkProgress.complete) {
-                    if (blinkProgress.sawClosed && eyesOpen) {
-                      blinkProgress.complete = true;
-                    } else if (blinkProgress.openFrames >= 2 && eyesClosed) {
-                      blinkProgress.sawClosed = true;
-                    } else if (eyesOpen) {
-                      blinkProgress.openFrames++;
-                    }
-                  }
-                  $("#captureFaceButton").prop(
-                    "disabled",
-                    !blinkProgress.complete,
-                  );
-                  setVerificationStatus(
-                    "#faceLiveStatus",
-                    blinkProgress.complete
-                      ? "Face is centered and the blink check passed. Capture your selfie when ready."
-                      : blinkProgress.sawClosed
-                        ? "Blink detected. Open your eyes to finish the check."
-                        : blinkProgress.openFrames >= 2
-                          ? "Face centered. Blink once to continue."
-                          : "Face detected. Hold still, look at the camera, and keep your eyes open.",
-                    blinkProgress.complete,
-                  );
-                }
-              }
+            if (
+              video.readyState < 2 ||
+              !video.videoWidth ||
+              !video.videoHeight
+            ) {
+              stableFace = { samples: 0, box: null, since: 0 };
+              setVerificationStatus(
+                "#faceLiveStatus",
+                "Waiting for a usable camera frame…",
+              );
+              return;
+            }
+            const detections = await faceapi
+              .detectAllFaces(
+                video,
+                new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }),
+              )
+              .withFaceLandmarks();
+            if (
+              !cameraStream ||
+              currentVerificationStep !== 3 ||
+              !$("#verificationConsent").prop("checked")
+            ) {
+              return;
+            }
+            if (detections.length !== 1) {
+              stableFace = { samples: 0, box: null, since: 0 };
+              $("#faceGuide").removeClass("is-aligned");
+              setVerificationStatus(
+                "#faceLiveStatus",
+                detections.length === 0
+                  ? "Move into the oval and face the camera."
+                  : "Only one face should be visible. Ask others to step out of frame.",
+              );
+              return;
+            }
+            const box = detections[0].detection.box;
+            const positionMessage = getFacePositionMessage(
+              box,
+              video.videoWidth,
+              video.videoHeight,
+              true,
+            );
+            if (positionMessage) {
+              stableFace = { samples: 0, box: null, since: 0 };
+              $("#faceGuide").removeClass("is-aligned");
+              setVerificationStatus(
+                "#faceLiveStatus",
+                positionMessage,
+                true,
+              );
+              return;
+            }
+            $("#faceGuide").addClass("is-aligned");
+            const currentBox = {
+              centerX: (box.x + box.width / 2) / video.videoWidth,
+              centerY: (box.y + box.height / 2) / video.videoHeight,
+              width: box.width / video.videoWidth,
+              height: box.height / video.videoHeight,
+            };
+            const previousBox = stableFace.box;
+            const stable =
+              previousBox &&
+              Math.abs(currentBox.centerX - previousBox.centerX) <= 0.025 &&
+              Math.abs(currentBox.centerY - previousBox.centerY) <= 0.025 &&
+              Math.abs(currentBox.width - previousBox.width) <= 0.06 &&
+              Math.abs(currentBox.height - previousBox.height) <= 0.06;
+            if (stable) {
+              stableFace.samples++;
+            } else {
+              stableFace = {
+                samples: 1,
+                box: currentBox,
+                since: Date.now(),
+              };
+            }
+            stableFace.box = currentBox;
+            $("#captureFaceButton")
+              .prop("disabled", true)
+              .text("Hold still for capture");
+            if (
+              stableFace.samples >= 8 &&
+              Date.now() - stableFace.since >= 600
+            ) {
+              await captureStableSelfie();
+            } else {
+              setVerificationStatus(
+                "#faceLiveStatus",
+                "Face is centered. Hold still for automatic capture.",
+                true,
+              );
             }
           } catch (error) {
             releaseCamera();
@@ -758,13 +907,25 @@ $(document).ready(function () {
           } finally {
             faceMonitorBusy = false;
             if (cameraStream && currentVerificationStep === 3) {
-              faceMonitorTimer = setTimeout(monitorFaceGuide, 300);
+              faceMonitorTimer = setTimeout(monitorFaceGuide, 50);
             }
           }
         };
 
         $("#continueToSelfieButton").on("click", function () {
           const name = $("#regName").val().trim().replace(/\s+/g, " ");
+          if (
+            !$("#verificationConsent").prop("checked") ||
+            !idFaceDescriptor ||
+            !$("#reviewIdPreview").attr("src")
+          ) {
+            setVerificationStatus(
+              "#idProcessStatus",
+              "Upload and review a readable ID image before continuing.",
+            );
+            setVerificationStep(1);
+            return;
+          }
           if (!/^\p{L}+(?:[ '\u2019.-]\p{L}+)*$/u.test(name)) {
             setErr(
               "#regNameErr",
@@ -776,7 +937,7 @@ $(document).ready(function () {
           }
           setErr("#regNameErr", "");
           clearCapturedSelfie();
-          blinkProgress = { openFrames: 0, sawClosed: false, complete: false };
+          stableFace = { samples: 0, box: null, since: 0 };
           setVerificationStatus(
             "#faceLiveStatus",
             "Start your camera when you’re ready.",
@@ -789,11 +950,7 @@ $(document).ready(function () {
           if (destination === 3) {
             clearCapturedSelfie();
             faceVerified = false;
-            blinkProgress = {
-              openFrames: 0,
-              sawClosed: false,
-              complete: false,
-            };
+            stableFace = { samples: 0, box: null, since: 0 };
             setVerificationStatus(
               "#faceLiveStatus",
               "Start your camera to retake your selfie.",
@@ -857,16 +1014,22 @@ $(document).ready(function () {
             const video = $("#faceVideo").get(0);
             video.srcObject = cameraStream;
             await video.play();
+            await waitForVideoFrame(video, stream);
+            if (
+              cameraGeneration !== verificationGeneration ||
+              !$("#verificationConsent").prop("checked") ||
+              currentVerificationStep !== 3
+            ) {
+              releaseCamera();
+              return;
+            }
             $("#faceVideo, #faceGuide").removeClass("d-none");
             $("#startCameraButton").addClass("d-none");
             $("#captureFaceButton")
               .removeClass("d-none")
-              .prop("disabled", true);
-            blinkProgress = {
-              openFrames: 0,
-              sawClosed: false,
-              complete: false,
-            };
+              .prop("disabled", true)
+              .text("Hold still for capture");
+            stableFace = { samples: 0, box: null, since: 0 };
             setVerificationStatus(
               "#faceLiveStatus",
               "Position your face inside the oval.",
@@ -889,82 +1052,6 @@ $(document).ready(function () {
               "disabled",
               !$("#verificationConsent").prop("checked") || !idFaceDescriptor,
             );
-          }
-        });
-
-        $("#captureFaceButton").on("click", async function () {
-          if (!cameraStream || !idFaceDescriptor || !blinkProgress.complete) {
-            setVerificationStatus(
-              "#faceLiveStatus",
-              "Complete the face-position and blink checks before capturing.",
-            );
-            return;
-          }
-          $(this).prop("disabled", true);
-          const captureGeneration = verificationGeneration;
-          setLoadingStatus("#faceLiveStatus", "Capturing your selfie…");
-          clearCapturedSelfie();
-          let capturedFrame;
-          try {
-            const video = $("#faceVideo").get(0);
-            capturedFrame = $("#selfiePreview").get(0);
-            capturedFrame.width = video.videoWidth;
-            capturedFrame.height = video.videoHeight;
-            capturedFrame
-              .getContext("2d")
-              .drawImage(
-                video,
-                0,
-                0,
-                capturedFrame.width,
-                capturedFrame.height,
-              );
-            const result = await recognizeFace(capturedFrame);
-            if (
-              captureGeneration !== verificationGeneration ||
-              !$("#verificationConsent").prop("checked")
-            ) {
-              capturedFrame.width = 0;
-              capturedFrame.height = 0;
-              return;
-            }
-            const positionMessage = getFacePositionMessage(
-              result.box,
-              capturedFrame.width,
-              capturedFrame.height,
-              true,
-            );
-            if (positionMessage) {
-              capturedFrame.width = 0;
-              capturedFrame.height = 0;
-              setVerificationStatus(
-                "#faceLiveStatus",
-                `${positionMessage} Keep your face centered and capture again.`,
-              );
-              return;
-            }
-            capturedSelfieCanvas = capturedFrame;
-            capturedSelfieDescriptor = result.descriptor;
-            $("#selfiePreviewWrap").removeClass("d-none");
-            setVerificationStatus(
-              "#faceLiveStatus",
-              "Selfie captured. Review it, then continue to verify.",
-              true,
-            );
-            setVerificationStep(4);
-          } catch (error) {
-            if (capturedFrame) {
-              capturedFrame.width = 0;
-              capturedFrame.height = 0;
-            }
-            setVerificationStatus(
-              "#faceLiveStatus",
-              error && error.message
-                ? `Selfie could not be checked: ${error.message}`
-                : "Selfie could not be checked. Try again in better lighting.",
-            );
-          } finally {
-            $("#captureFaceButton").prop("disabled", false);
           }
         });
 
@@ -1002,14 +1089,16 @@ $(document).ready(function () {
             );
             faceVerified = distance <= 0.6;
             if (faceVerified) {
+              registeredFaceDescriptor = Array.from(capturedSelfieDescriptor);
               showVerificationResult(
                 true,
-                "The face match and basic blink check passed on this device. This browser-only prototype cannot prove identity or securely enforce verification.",
+                "The face match passed on this device. Automatic capture does not prove liveness; production use requires additional anti-spoofing protection. This browser-only prototype cannot securely enforce verification.",
               );
               clearCapturedSelfie();
               idFaceDescriptor = null;
               clearIdPreview();
             } else {
+              registeredFaceDescriptor = null;
               showVerificationResult(
                 false,
                 "The faces did not match closely enough. Check that the ID is yours, use a clear ID portrait, and retake your selfie in good lighting.",
@@ -1020,6 +1109,7 @@ $(document).ready(function () {
             if (verificationAttemptGeneration !== verificationGeneration)
               return;
             faceVerified = false;
+            registeredFaceDescriptor = null;
             showVerificationResult(
               false,
               error && error.message
@@ -1036,7 +1126,7 @@ $(document).ready(function () {
         $("#retrySelfieButton").on("click", function () {
           faceVerified = false;
           clearCapturedSelfie();
-          blinkProgress = { openFrames: 0, sawClosed: false, complete: false };
+          stableFace = { samples: 0, box: null, since: 0 };
           clearVerificationResult();
           setVerificationStatus(
             "#faceLiveStatus",
@@ -1048,6 +1138,7 @@ $(document).ready(function () {
           e.preventDefault();
           if (
             !faceVerified ||
+            !registeredFaceDescriptor ||
             currentVerificationStep !== 5 ||
             !$("#verificationConsent").prop("checked")
           ) {
@@ -1078,7 +1169,7 @@ $(document).ready(function () {
             setErr("#regUserErr", "Username / Name is required.");
             ok = false;
           } else if (
-            registeredUsers.some(
+            window.DJSALON_AUTH.getUsers().some(
               (u) => u.username.toLowerCase() === user.toLowerCase(),
             )
           ) {
@@ -1091,6 +1182,9 @@ $(document).ready(function () {
           } else setErr("#regPhoneErr", "");
           if (!pass) {
             setErr("#regPassErr", "Password is required.");
+            ok = false;
+          } else if (pass.length < 8) {
+            setErr("#regPassErr", "Password must be at least 8 characters.");
             ok = false;
           } else setErr("#regPassErr", "");
           if (pass && pass !== conf) {
@@ -1110,31 +1204,27 @@ $(document).ready(function () {
             dateOfBirth: $("#regDob").val(),
             address: $("#regAddress").val().trim(),
             identityVerified: true,
+            active: true,
+            faceDescriptor: registeredFaceDescriptor,
           };
           try {
             window.DJSALON_AUTH.saveUser(nu);
           } catch (error) {
-            showVerificationResult(
-              false,
-              error && error.message
-                ? `Account could not be saved: ${error.message}`
-                : "Account could not be saved in this browser. Check available storage and try again.",
-            );
-            return;
-          }
-          try {
-            window.DJSALON_AUTH.setCurrentUser(nu);
-          } catch (error) {
-            showVerificationResult(
-              false,
-              error && error.message
-                ? `Your account was created, but sign-in could not be saved: ${error.message}`
-                : "Your account was created, but automatic sign-in could not be saved. Sign in from the login page.",
-            );
+            if (error && /already taken/i.test(error.message || "")) {
+              setErr("#regUserErr", "That username / name is already taken.");
+              return;
+            }
+            $("#registrationSaveStatus")
+              .text(
+                error && error.message
+                  ? `Account could not be saved: ${error.message}`
+                  : "Account could not be saved in this browser. Check available storage and try again.",
+              )
+              .removeClass("d-none");
             return;
           }
           resetVerificationSession();
-          window.location.assign("index%20.html");
+          window.location.assign("login.html?registered=1");
         });
   window.addEventListener("pagehide", resetVerificationSession);
 });
