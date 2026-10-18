@@ -22,12 +22,18 @@
     return users;
   }
 
+  const normalizeUsername = (username) =>
+    String(username || "")
+      .trim()
+      .toLocaleLowerCase();
+
   function getUsers() {
     const users = defaultUsers.map((user) => ({ ...user }));
     readStoredUsers().forEach((savedUser) => {
       const index = users.findIndex(
         (user) =>
-          user.username.toLowerCase() === savedUser.username.toLowerCase(),
+          normalizeUsername(user.username) ===
+          normalizeUsername(savedUser.username),
       );
       if (index === -1) users.push(savedUser);
       else users[index] = savedUser;
@@ -36,13 +42,21 @@
   }
 
   function saveUser(user) {
+    if (!user || typeof user.username !== "string" || !user.username.trim()) {
+      throw new Error("A username is required to create a salon account.");
+    }
+    const username = user.username.trim();
+    if (
+      getUsers().some(
+        (savedUser) =>
+          normalizeUsername(savedUser.username) === normalizeUsername(username),
+      )
+    ) {
+      throw new Error("That username is already taken.");
+    }
+
     const users = readStoredUsers();
-    const index = users.findIndex(
-      (savedUser) =>
-        savedUser.username.toLowerCase() === user.username.toLowerCase(),
-    );
-    if (index === -1) users.push(user);
-    else users[index] = user;
+    users.push({ ...user, username });
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
   }
 
